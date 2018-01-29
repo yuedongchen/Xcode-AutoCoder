@@ -192,9 +192,9 @@
             NSString *line9 = [NSString stringWithFormat:@""];
             NSString *line10 = [NSString stringWithFormat:@"        _%@ = [[%@ alloc] initWithFrame:CGRectZero collectionViewLayout:layout];", nameStr, categoryStr];
             NSString *line11 = [NSString stringWithFormat:@"        _%@.delegate = self;", nameStr];
-            NSString *line12 = [NSString stringWithFormat:@"        %@.dataSource = self;", nameStr];
-            NSString *line13 = [NSString stringWithFormat:@"        %@.backgroundColor = [UIColor clearColor];", nameStr];
-            NSString *line14 = [NSString stringWithFormat:@"        [%@ registerClass:[ class] forCellWithReuseIdentifier:@""];", nameStr];
+            NSString *line12 = [NSString stringWithFormat:@"        _%@.dataSource = self;", nameStr];
+            NSString *line13 = [NSString stringWithFormat:@"        _%@.backgroundColor = [UIColor clearColor];", nameStr];
+            NSString *line14 = [NSString stringWithFormat:@"        [_%@ registerClass:[ class] forCellWithReuseIdentifier:@""];", nameStr];
             
             NSString *line15 = [NSString stringWithFormat:@"    }"];
             NSString *line16 = [NSString stringWithFormat:@"    return _%@;", nameStr];
