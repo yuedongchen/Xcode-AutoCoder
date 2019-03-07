@@ -170,7 +170,7 @@
             NSString *line6 = [NSString stringWithFormat:@"        [_%@ setTitle:  forState:UIControlStateNormal];", nameStr];
             NSString *line7 = [NSString stringWithFormat:@"        [_%@ setTitleColor:  forState:UIControlStateNormal];", nameStr];
             NSString *line8 = [NSString stringWithFormat:@"        [_%@ setImage:[UIImage imageNamed: ] forState:UIControlStateNormal];", nameStr];
-            NSString *line9 = [NSString stringWithFormat:@"        [_%@ addTarget:self action:@selector(someAction) forControlEvents:UIControlEventTouchUpInside];", nameStr];
+            NSString *line9 = [NSString stringWithFormat:@"        [_%@ addTarget:self action:@selector(%@Action) forControlEvents:UIControlEventTouchUpInside];", nameStr, nameStr];
             
             NSString *line20 = [NSString stringWithFormat:@"    }"];
             NSString *line21 = [NSString stringWithFormat:@"    return _%@;", nameStr];
@@ -178,6 +178,16 @@
             
             NSMutableArray *lineArrays = [[NSMutableArray alloc] initWithObjects:line0, line1, line2, line3, line4, line5, line6, line7, line8, line9, line20, line21, line22, nil];
             [itemsArray addObject:lineArrays];
+            
+            //添加方法
+            NSString *action0 = [NSString stringWithFormat:@""];
+            NSString *action1 = [NSString stringWithFormat:@"- (void)%@Action", nameStr];
+            NSString *action2 = [NSString stringWithFormat:@"{"];
+            NSString *action3 = [NSString stringWithFormat:@"}"];
+            
+            NSMutableArray *actionArrays = [[NSMutableArray alloc] initWithObjects:action0, action1, action2, action3, nil];
+            [itemsArray insertObject:actionArrays atIndex:0];
+            
         } else if ([categoryStr isEqualToString:[NSString stringWithFormat:@"UICollectionView"]]) {
             NSString *line0 = [NSString stringWithFormat:@""];
             NSString *line1 = [NSString stringWithFormat:@"- (%@ *)%@", categoryStr, nameStr];
@@ -194,7 +204,7 @@
             NSString *line11 = [NSString stringWithFormat:@"        _%@.delegate = self;", nameStr];
             NSString *line12 = [NSString stringWithFormat:@"        _%@.dataSource = self;", nameStr];
             NSString *line13 = [NSString stringWithFormat:@"        _%@.backgroundColor = [UIColor clearColor];", nameStr];
-            NSString *line14 = [NSString stringWithFormat:@"        [_%@ registerClass:[ class] forCellWithReuseIdentifier:@""];", nameStr];
+            NSString *line14 = [NSString stringWithFormat:@"        [_%@ registerClass:[ class] forCellWithReuseIdentifier:[ reuseIdentifier]];", nameStr];
             
             NSString *line15 = [NSString stringWithFormat:@"    }"];
             NSString *line16 = [NSString stringWithFormat:@"    return _%@;", nameStr];
@@ -202,6 +212,30 @@
             
             NSMutableArray *lineArrays = [[NSMutableArray alloc] initWithObjects:line0, line1, line2, line3, line4, line5, line6, line7, line8, line9, line10, line11, line12, line13, line14, line15, line16, line17, nil];
             [itemsArray addObject:lineArrays];
+            
+            //添加datasource，delegate方法
+            
+            //添加方法
+            NSString *action0 = [NSString stringWithFormat:@""];
+            NSString *action1 = [NSString stringWithFormat:@"#pragma mark -- UICollectionView"];
+            NSString *action2 = [NSString stringWithFormat:@"- (NSInteger)collectionView:(UICollectionView *)collectionView numberOfItemsInSection:(NSInteger)section"];
+            NSString *action3 = [NSString stringWithFormat:@"{"];
+            NSString *action4 = [NSString stringWithFormat:@"    return 0;"];
+            NSString *action5 = [NSString stringWithFormat:@"}"];
+            NSString *action6 = [NSString stringWithFormat:@""];
+            NSString *action7 = [NSString stringWithFormat:@"- (__kindof UICollectionViewCell *)collectionView:(UICollectionView *)collectionView cellForItemAtIndexPath:(NSIndexPath *)indexPath"];
+            NSString *action8 = [NSString stringWithFormat:@"{"];
+            NSString *action9 = [NSString stringWithFormat:@"     *cell = [collectionView dequeueReusableCellWithReuseIdentifier:[ reuseIdentifier] forIndexPath:indexPath]"];
+            NSString *action10 = [NSString stringWithFormat:@"    return cell;"];
+            NSString *action11 = [NSString stringWithFormat:@"}"];
+            NSString *action12 = [NSString stringWithFormat:@""];
+            NSString *action13 = [NSString stringWithFormat:@"- (void)collectionView:(UICollectionView *)collectionView didSelectItemAtIndexPath:(NSIndexPath *)indexPath"];
+            NSString *action14 = [NSString stringWithFormat:@"{"];
+            NSString *action15 = [NSString stringWithFormat:@"}"];
+            
+            NSMutableArray *actionArrays = [[NSMutableArray alloc] initWithObjects:action0, action1, action2, action3, action4, action5, action6, action7, action8, action9, action10, action11, action12, action13, action14, action15, nil];
+            [itemsArray insertObject:actionArrays atIndex:0];
+            
         } else {
             NSString *line0 = [NSString stringWithFormat:@""];
             NSString *line1 = [NSString stringWithFormat:@"- (%@ *)%@", categoryStr, nameStr];
