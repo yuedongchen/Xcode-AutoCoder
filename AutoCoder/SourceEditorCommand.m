@@ -14,6 +14,10 @@
 @property (nonatomic, assign) NSInteger predicate;
 @property (nonatomic, strong) NSMutableArray *indexsArray;
 
+@property (nonatomic, strong) NSMutableArray *cellsArray;
+@property (nonatomic, strong) NSMutableArray *headersArray;
+@property (nonatomic, strong) NSMutableArray *footersArray;
+
 @property (nonatomic, assign) BOOL isVc;
 
 @end
@@ -25,9 +29,10 @@
     self.predicate = NO;
     NSArray *stringArray = [NSArray arrayWithArray:invocation.buffer.lines];
     
-    self.indexsArray = [[NSMutableArray alloc] init];
     for (int i = 0; i < stringArray.count; i++) {
+        
         if (!self.predicate) {
+            [self predicateForImports:stringArray[i]];
             [self beginPredicate:stringArray[i]];
         } else {
             if ([self endPredicate:stringArray[i]]) {
@@ -63,6 +68,93 @@
         }
     }
     completionHandler(nil);
+}
+
+#pragma mark -- Analyse Codes
+
+- (void)predicateForImports:(NSString *)string
+{
+    if ([string containsString:@"#import"]) {
+        
+        if ([string containsString:@"Cell"]) {
+            NSString *cellName = [string substringWithRange:NSMakeRange(9, string.length - 13)];
+            [self.cellsArray addObject:cellName];
+        } else if ([string containsString:@"Header"]) {
+            NSString *headerName = [string substringWithRange:NSMakeRange(9, string.length - 13)];
+            [self.headersArray addObject:headerName];
+        } else if ([string containsString:@"Footer"]) {
+            NSString *footerName = [string substringWithRange:NSMakeRange(9, string.length - 13)];
+            [self.footersArray addObject:footerName];
+        }
+        
+    }
+}
+
+- (void)predicateForProperty:(NSString *)string
+{
+    NSString *str = string;
+    NSPredicate *pre = [NSPredicate predicateWithFormat:@"SELF MATCHES %@", @"^@property.*;\\n$"];
+    if ([pre evaluateWithObject:str]) {
+        //这是一个property.
+        if ([str containsString:@"*"] && ![str containsString:@"IBOutlet"] && ![str containsString:@"^"] && ![str containsString:@"//"]) {
+            NSString *category = @"";
+            NSString *name = @"";
+            
+            NSRange range1 = [str rangeOfString:@"\\).*\\*" options:NSRegularExpressionSearch];
+            NSString *string1 = [str substringWithRange:range1];
+            NSRange range2 = [string1 rangeOfString:@"[a-zA-Z0-9_]+" options:NSRegularExpressionSearch];
+            category = [string1 substringWithRange:range2];
+            
+            NSRange range3 = [str rangeOfString:@"\\*.*;" options:NSRegularExpressionSearch];
+            NSString *string2 = [str substringWithRange:range3];
+            NSRange range4 = [string2 rangeOfString:@"[a-zA-Z0-9_]+" options:NSRegularExpressionSearch];
+            name = [string2 substringWithRange:range4];
+            
+            NSDictionary *dic = @{@"category" : category, @"name" : name};
+            [self.indexsArray addObject:dic];
+        }
+    }
+}
+
+
+- (void)beginPredicate:(NSString *)string
+{
+    NSString *str = string;
+    if ([str containsString:@"@interface"]) {
+        self.predicate = YES;
+        // 简单判断是 vc 还是 view
+        if ([str containsString:@"ViewController"]) {
+            self.isVc = YES;
+        } else {
+            self.isVc = NO;
+        }
+    }
+}
+
+- (BOOL)endPredicate:(NSString *)string
+{
+    if ([string containsString:@"@end"]) {
+        self.predicate = NO;
+        return YES;
+    }
+    return NO;
+}
+
+
+#pragma mark -- Add Codes
+
+- (NSMutableArray *)makeResultStringArray
+{
+    NSMutableArray *itemsArray = [[NSMutableArray alloc] init];
+    
+    if (!self.isVc) {
+        [itemsArray addObjectsFromArray:[self makeInitStringArray]];
+    }
+    [itemsArray addObjectsFromArray:[self makeConfigStringArray]];
+    [itemsArray addObjectsFromArray:[self makeActionsStringArray]];
+    [itemsArray addObjectsFromArray:[self makeGettersStringArray]];
+    
+    return itemsArray;
 }
 
 // 自动打上 init 代码
@@ -131,6 +223,43 @@
     return itemsArray;
 }
 
+// 自动打上 actions 代码
+
+- (NSMutableArray *)makeActionsStringArray
+{
+    NSMutableArray *itemsArray = [[NSMutableArray alloc] init];
+    
+    BOOL hasAddPragma = NO;
+    
+    for (int i = 0; i < self.indexsArray.count; i++) {
+        
+        NSString *categoryStr = self.indexsArray[i][@"category"];
+        NSString *nameStr = self.indexsArray[i][@"name"];
+        
+        if ([categoryStr isEqualToString:[NSString stringWithFormat:@"UIButton"]]) {
+            
+            //添加方法
+            NSString *actionf2 = [NSString stringWithFormat:@""];
+            NSString *actionf1 = [NSString stringWithFormat:@"#pragma mark -- Actions"];
+            NSString *action0 = [NSString stringWithFormat:@""];
+            NSString *action1 = [NSString stringWithFormat:@"- (void)%@Action", nameStr];
+            NSString *action2 = [NSString stringWithFormat:@"{"];
+            NSString *action3 = [NSString stringWithFormat:@"}"];
+            
+            if (hasAddPragma) {
+                NSMutableArray *actionArrays = [[NSMutableArray alloc] initWithObjects:action0, action1, action2, action3, nil];
+                [itemsArray insertObject:actionArrays atIndex:1];
+            } else {
+                hasAddPragma = YES;
+                NSMutableArray *actionArrays = [[NSMutableArray alloc] initWithObjects:actionf2, actionf1, action0, action1, action2, action3, nil];
+                [itemsArray insertObject:actionArrays atIndex:0];
+            }
+            
+        }
+    }
+    return itemsArray;
+}
+
 // 自动打上 getters 代码
 - (NSMutableArray *)makeGettersStringArray
 {
@@ -140,6 +269,8 @@
     NSString *line1 = [NSString stringWithFormat:@"#pragma mark -- Getters"];
     NSMutableArray *lineArrays = [[NSMutableArray alloc] initWithObjects:line0, line1, nil];
     [itemsArray addObject:lineArrays];
+    
+    BOOL hasAddCollectionViewPragma = NO;
     
     for (int i = 0; i < self.indexsArray.count; i++) {
         
@@ -179,15 +310,6 @@
             NSMutableArray *lineArrays = [[NSMutableArray alloc] initWithObjects:line0, line1, line2, line3, line4, line5, line6, line7, line8, line9, line20, line21, line22, nil];
             [itemsArray addObject:lineArrays];
             
-            //添加方法
-            NSString *action0 = [NSString stringWithFormat:@""];
-            NSString *action1 = [NSString stringWithFormat:@"- (void)%@Action", nameStr];
-            NSString *action2 = [NSString stringWithFormat:@"{"];
-            NSString *action3 = [NSString stringWithFormat:@"}"];
-            
-            NSMutableArray *actionArrays = [[NSMutableArray alloc] initWithObjects:action0, action1, action2, action3, nil];
-            [itemsArray insertObject:actionArrays atIndex:0];
-            
         } else if ([categoryStr isEqualToString:[NSString stringWithFormat:@"UICollectionView"]]) {
             NSString *line0 = [NSString stringWithFormat:@""];
             NSString *line1 = [NSString stringWithFormat:@"- (%@ *)%@", categoryStr, nameStr];
@@ -204,20 +326,40 @@
             NSString *line11 = [NSString stringWithFormat:@"        _%@.delegate = self;", nameStr];
             NSString *line12 = [NSString stringWithFormat:@"        _%@.dataSource = self;", nameStr];
             NSString *line13 = [NSString stringWithFormat:@"        _%@.backgroundColor = [UIColor clearColor];", nameStr];
-            NSString *line14 = [NSString stringWithFormat:@"        [_%@ registerClass:[ class] forCellWithReuseIdentifier:[ reuseIdentifier]];", nameStr];
+            
+            NSMutableArray *line14Array = [NSMutableArray array];
+            for (NSString *cellName in self.cellsArray) {
+                NSString *line14 = [NSString stringWithFormat:@"        [_%@ registerClass:[%@ class] forCellWithReuseIdentifier:[%@ reuseIdentifier]];", nameStr, cellName, cellName];
+                [line14Array addObject:line14];
+            }
+            for (NSString *headerName in self.headersArray) {
+                NSString *line14 = [NSString stringWithFormat:@"        [_%@ registerClass:[%@ class] forSupplementaryViewOfKind:UICollectionElementKindSectionHeader withReuseIdentifier:[%@ reuseIdentifier]];", nameStr, headerName, headerName];
+                [line14Array addObject:line14];
+            }
+            for (NSString *footerName in self.footersArray) {
+                NSString *line14 = [NSString stringWithFormat:@"        [_%@ registerClass:[%@ class] forSupplementaryViewOfKind:UICollectionElementKindSectionFooter withReuseIdentifier:[%@ reuseIdentifier]];", nameStr, footerName, footerName];
+                [line14Array addObject:line14];
+            }
             
             NSString *line15 = [NSString stringWithFormat:@"    }"];
             NSString *line16 = [NSString stringWithFormat:@"    return _%@;", nameStr];
             NSString *line17 = [NSString stringWithFormat:@"}"];
             
-            NSMutableArray *lineArrays = [[NSMutableArray alloc] initWithObjects:line0, line1, line2, line3, line4, line5, line6, line7, line8, line9, line10, line11, line12, line13, line14, line15, line16, line17, nil];
+            NSMutableArray *lineArrays = [[NSMutableArray alloc] initWithObjects:line0, line1, line2, line3, line4, line5, line6, line7, line8, line9, line10, line11, line12, line13, nil];
+            [lineArrays addObjectsFromArray:line14Array];
+            [lineArrays addObjectsFromArray:@[line15, line16, line17]];
             [itemsArray addObject:lineArrays];
             
             //添加datasource，delegate方法
+            if (hasAddCollectionViewPragma) {
+                continue;
+            }
+            hasAddCollectionViewPragma = YES;
             
             //添加方法
             NSString *action0 = [NSString stringWithFormat:@""];
             NSString *action1 = [NSString stringWithFormat:@"#pragma mark -- UICollectionView"];
+            NSString *action1to2 = [NSString stringWithFormat:@""];
             NSString *action2 = [NSString stringWithFormat:@"- (NSInteger)collectionView:(UICollectionView *)collectionView numberOfItemsInSection:(NSInteger)section"];
             NSString *action3 = [NSString stringWithFormat:@"{"];
             NSString *action4 = [NSString stringWithFormat:@"    return 0;"];
@@ -225,7 +367,13 @@
             NSString *action6 = [NSString stringWithFormat:@""];
             NSString *action7 = [NSString stringWithFormat:@"- (__kindof UICollectionViewCell *)collectionView:(UICollectionView *)collectionView cellForItemAtIndexPath:(NSIndexPath *)indexPath"];
             NSString *action8 = [NSString stringWithFormat:@"{"];
-            NSString *action9 = [NSString stringWithFormat:@"     *cell = [collectionView dequeueReusableCellWithReuseIdentifier:[ reuseIdentifier] forIndexPath:indexPath]"];
+            
+            NSString *cellName = @"";
+            if (self.cellsArray.count) {
+                cellName = self.cellsArray.firstObject;
+            }
+            NSString *action9 = [NSString stringWithFormat:@"    %@ *cell = [collectionView dequeueReusableCellWithReuseIdentifier:[%@ reuseIdentifier] forIndexPath:indexPath];", cellName, cellName];
+            
             NSString *action10 = [NSString stringWithFormat:@"    return cell;"];
             NSString *action11 = [NSString stringWithFormat:@"}"];
             NSString *action12 = [NSString stringWithFormat:@""];
@@ -233,7 +381,7 @@
             NSString *action14 = [NSString stringWithFormat:@"{"];
             NSString *action15 = [NSString stringWithFormat:@"}"];
             
-            NSMutableArray *actionArrays = [[NSMutableArray alloc] initWithObjects:action0, action1, action2, action3, action4, action5, action6, action7, action8, action9, action10, action11, action12, action13, action14, action15, nil];
+            NSMutableArray *actionArrays = [[NSMutableArray alloc] initWithObjects:action0, action1, action1to2, action2, action3, action4, action5, action6, action7, action8, action9, action10, action11, action12, action13, action14, action15, nil];
             [itemsArray insertObject:actionArrays atIndex:0];
             
         } else {
@@ -253,68 +401,7 @@
     return itemsArray;
 }
 
-- (NSMutableArray *)makeResultStringArray
-{
-    NSMutableArray *itemsArray = [[NSMutableArray alloc] init];
-    
-    if (!self.isVc) {
-        [itemsArray addObjectsFromArray:[self makeInitStringArray]];
-    }
-    [itemsArray addObjectsFromArray:[self makeConfigStringArray]];
-    [itemsArray addObjectsFromArray:[self makeGettersStringArray]];
-    
-    return itemsArray;
-}
-
-- (void)predicateForProperty:(NSString *)string
-{
-    NSString *str = string;
-    NSPredicate *pre = [NSPredicate predicateWithFormat:@"SELF MATCHES %@", @"^@property.*;\\n$"];
-    if ([pre evaluateWithObject:str]) {
-        //这是一个property.
-        if (![str containsString:@"IBOutlet"] && ![str containsString:@"^"] && ![str containsString:@"//"]) {
-            NSString *category = @"";
-            NSString *name = @"";
-            
-            NSRange range1 = [str rangeOfString:@"\\).*\\*" options:NSRegularExpressionSearch];
-            NSString *string1 = [str substringWithRange:range1];
-            NSRange range2 = [string1 rangeOfString:@"[a-zA-Z0-9_]+" options:NSRegularExpressionSearch];
-            category = [string1 substringWithRange:range2];
-            
-            NSRange range3 = [str rangeOfString:@"\\*.*;" options:NSRegularExpressionSearch];
-            NSString *string2 = [str substringWithRange:range3];
-            NSRange range4 = [string2 rangeOfString:@"[a-zA-Z0-9_]+" options:NSRegularExpressionSearch];
-            name = [string2 substringWithRange:range4];
-            
-            NSDictionary *dic = @{@"category" : category, @"name" : name};
-            [self.indexsArray addObject:dic];
-        }
-    }
-}
-
-
-- (void)beginPredicate:(NSString *)string
-{
-    NSString *str = string;
-    if ([str containsString:@"@interface"]) {
-        self.predicate = YES;
-        // 简单判断是 vc 还是 view
-        if ([str containsString:@"ViewController"]) {
-            self.isVc = YES;
-        } else {
-            self.isVc = NO;
-        }
-    }
-}
-
-- (BOOL)endPredicate:(NSString *)string
-{
-    if ([string containsString:@"@end"]) {
-        self.predicate = NO;
-        return YES;
-    }
-    return NO;
-}
+#pragma mark -- Getters
 
 - (NSMutableArray *)indexsArray
 {
@@ -322,6 +409,30 @@
         _indexsArray = [[NSMutableArray alloc] init];
     }
     return _indexsArray;
+}
+
+- (NSMutableArray *)cellsArray
+{
+    if (!_cellsArray) {
+        _cellsArray = [NSMutableArray array];
+    }
+    return _cellsArray;
+}
+
+- (NSMutableArray *)headersArray
+{
+    if (!_headersArray) {
+        _headersArray = [NSMutableArray array];
+    }
+    return _headersArray;
+}
+
+- (NSMutableArray *)footersArray
+{
+    if (!_footersArray) {
+        _footersArray = [NSMutableArray array];
+    }
+    return _footersArray;
 }
 
 @end
